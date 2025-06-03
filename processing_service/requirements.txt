@@ -1,0 +1,4 @@
+asyncpg==0.28.0
+aio-pika==9.0.5
+python-dotenv==1.0.0
+redis==5.0.1
