@@ -1,0 +1,106 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:14-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db_init:/docker-entrypoint-initdb.d # Скрипты инициализации БД
+    ports:
+      - "5432:5432" # Открыть порт для отладки, в продакшене лучше убрать
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379" # Открыть порт для отладки, в продакшене лучше убрать
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    ports:
+      - "5672:5672" # AMQP порт
+      - "15672:15672" # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  admin_bot:
+    build:
+      context: ./admin_bot
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      ADMIN_USER_ID: ${ADMIN_USER_ID}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: db
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+    depends_on:
+      - db
+      - rabbitmq
+    # volumes: # Для горячей перезагрузки в разработке
+    #   - ./admin_bot/src:/app/src
+
+  userbot_core:
+    build:
+      context: ./userbot_core
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      PYROGRAM_API_ID: ${PYROGRAM_API_ID}
+      PYROGRAM_API_HASH: ${PYROGRAM_API_HASH}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: db
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      DEFAULT_WELCOME_MESSAGE: ${DEFAULT_WELCOME_MESSAGE}
+    depends_on:
+      - db
+      - redis
+      - rabbitmq
+    # volumes: # Для горячей перезагрузки в разработке
+    #   - ./userbot_core/src:/app/src
+
+  processing_service:
+    build:
+      context: ./processing_service
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: db
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+    depends_on:
+      - db
+      - redis
+      - rabbitmq
+    # volumes: # Для горячей перезагрузки в разработке
+    #   - ./processing_service/src:/app/src
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
